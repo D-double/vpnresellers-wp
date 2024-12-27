@@ -311,3 +311,57 @@ function get_product_data_from_external_api($request) {
       ),
   );
 }
+
+
+//---------------------------
+// Изменение статуса заказа на "Отменён" REST API маршрут 
+add_action('rest_api_init', function () {
+    register_rest_route('custom/v1', '/cancel-order', array(
+        'methods' => 'POST',
+        'callback' => 'cancel_order_by_id',
+        'permission_callback' => function () {
+            return is_user_logged_in(); // Только для авторизованных пользователей
+        },
+    ));
+});
+
+/**
+ * Callback для изменения статуса заказа на "Отменён"
+ */
+function cancel_order_by_id($request) {
+    // Извлекаем параметры из запроса
+    $params = $request->get_json_params();
+    $order_id = intval($params['order_id']);
+
+    if (empty($order_id)) {
+        return new WP_Error('missing_order_id', 'Параметр order_id обязателен.', array('status' => 400));
+    }
+
+    // Получаем заказ по ID
+    $order = wc_get_order($order_id);
+
+    if (!$order) {
+        return new WP_Error('order_not_found', 'Заказ с указанным ID не найден.', array('status' => 404));
+    }
+
+    // Проверяем, принадлежит ли заказ текущему пользователю
+    $user_id = get_current_user_id();
+    if ($order->get_customer_id() !== $user_id) {
+        return new WP_Error('not_authorized', 'Вы не можете отменить этот заказ.', array('status' => 403));
+    }
+
+    // Проверяем, что заказ не имеет статус "Выполнен"
+    if ($order->get_status() === 'completed') {
+        return new WP_Error('order_completed', 'Заказ уже выполнен и не может быть отменён.', array('status' => 400));
+    }
+
+    // Изменяем статус заказа на "Отменён"
+    $order->update_status('cancelled', 'Заказ был отменён через API.');
+
+    return array(
+        'status' => 'success',
+        'message' => 'Заказ успешно отменён.',
+        'order_id' => $order_id,
+        'order_status' => $order->get_status(),
+    );
+}
