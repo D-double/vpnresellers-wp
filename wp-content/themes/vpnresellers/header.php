@@ -16,47 +16,47 @@
   <link rel="canonical" href="https://smsbower.net/ru/login5"> -->
 
   <?php wp_head(); ?>
-  <?php if(is_user_logged_in()): ?>
-  
-  <script defer>
-    localStorage.setItem('access_token', REST_API_data.nonce)
-    const getToken = async () => {
-      const results = await fetch(`wp-json/wc/v3/products?_wpnonce=${REST_API_data.nonce}`);
-      const data = await results.json();
-      console.log(data);
-      // try {
-      //   const response = await fetch(REST_API_data.root + 'custom/v1/get-token', {
-      //     method: 'POST',
-      //   	headers: {
-      //       'Content-Type': 'application/json',
-      //   		'X-WP-Nonce': REST_API_data.nonce
-      //   	},
-      //     credentials: 'include', // Чтобы отправлять куки с авторизацией
-      //     // body: new URLSearchParams( 'nonce='+REST_API_data.nonce )
-      //     body: JSON.stringify({nonce: REST_API_data.nonce})
-      //   });
+  <?php if (is_user_logged_in()): ?>
 
-      //   const data = await response.json();
-      //   console.log(data);
-      //   if (response.ok) {
-      //     console.log('Токен получен:', data.token);
-      //     localStorage.setItem('access_token', data.token)
-      //     return data.token;
-      //   } else {
-      //     console.error('Ошибка получения токена:', data.message);
-      //     return null;
-      //   }
-      // } catch (error) {
-      //   console.error('Ошибка запроса токена:', error);
-      //   return null;
-      // }
-    }
-    // getToken()
-  </script>
+    <script defer>
+      localStorage.setItem('access_token', REST_API_data.nonce)
+      const getToken = async () => {
+        const results = await fetch(`wp-json/wc/v3/products?_wpnonce=${REST_API_data.nonce}`);
+        const data = await results.json();
+        console.log(data);
+        // try {
+        //   const response = await fetch(REST_API_data.root + 'custom/v1/get-token', {
+        //     method: 'POST',
+        //   	headers: {
+        //       'Content-Type': 'application/json',
+        //   		'X-WP-Nonce': REST_API_data.nonce
+        //   	},
+        //     credentials: 'include', // Чтобы отправлять куки с авторизацией
+        //     // body: new URLSearchParams( 'nonce='+REST_API_data.nonce )
+        //     body: JSON.stringify({nonce: REST_API_data.nonce})
+        //   });
+
+        //   const data = await response.json();
+        //   console.log(data);
+        //   if (response.ok) {
+        //     console.log('Токен получен:', data.token);
+        //     localStorage.setItem('access_token', data.token)
+        //     return data.token;
+        //   } else {
+        //     console.error('Ошибка получения токена:', data.message);
+        //     return null;
+        //   }
+        // } catch (error) {
+        //   console.error('Ошибка запроса токена:', error);
+        //   return null;
+        // }
+      }
+      // getToken()
+    </script>
   <?php else: ?>
-  <script>
-    localStorage.removeItem('access_token')
-  </script>
+    <script>
+      localStorage.removeItem('access_token')
+    </script>
   <?php endif; ?>
 
 </head>
@@ -126,6 +126,31 @@
           'items_wrap'      => '<ul id="%1$s" class="%2$s">%3$s</ul>',
         ]
       ) ?>
+      <div class="mobile-menu-user-withdrawal">
+        <?php
+        // Проверяем, авторизован ли пользователь
+        if (is_user_logged_in()) :
+          $user_id = get_current_user_id();
+          // Получаем баланс пользователя
+          if (function_exists('get_wallet_balance')) {
+            $balance = apply_filters('woo_wallet_balance', get_wallet_balance($user_id, true), $user_id);
+          } else {
+            $balance = 0; // Если функция недоступна
+          }
+          // URL страницы оплаты (замените на URL вашей страницы)
+          $payment_page_url = site_url('/payment-page');
+        ?>
+          <a style="text-decoration: none" href="<?php echo esc_url($payment_page_url); ?>">
+            <div class="--button">
+              <img src="/img/svg/header-user-menu/dollor-coin.svg">
+              Пополнить
+            </div>
+          </a>
+          <div class="--value user-balance-new">
+            <?php echo wc_price($balance); ?>
+          </div>
+        <?php endif; ?>
+      </div>
     </div>
 
     <div class="mobile-menu">

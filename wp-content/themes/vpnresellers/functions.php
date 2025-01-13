@@ -1,6 +1,4 @@
 <?php
-// Подключение кастомных маршрутов REST API
-require_once get_template_directory() . '/includes/custom-rest-routes.php';
 
 add_action('wp_enqueue_scripts', "themeStyle");
 add_action('wp_enqueue_scripts', "themeScript");
@@ -13,7 +11,7 @@ function themeStyle()
   wp_enqueue_style("vue-multiselect", get_template_directory_uri() . "/assets/css/vue-multiselect.min.css");
   wp_enqueue_style("bootstrap", get_template_directory_uri() . "/assets/css/bootstrap.css");
   wp_enqueue_style("main", get_template_directory_uri() . "/assets/css/main.css");
-  wp_enqueue_style("user-navigate", get_template_directory_uri() . "/assets/css/index-DBAvs2Ia.css");
+  wp_enqueue_style("user-navigate", get_template_directory_uri() . "/assets/css/index-CScSokle.css");
   wp_enqueue_style("style", get_stylesheet_uri());
 }
 // подключение скриптов
@@ -21,7 +19,7 @@ function themeScript()
 {
   wp_enqueue_script('bootstrap', get_template_directory_uri() . "/assets/js/bootstrap.min.js", [], null, true);
   wp_enqueue_script('main', get_template_directory_uri() . "/assets/js/main.js", [], null, true);
-  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-DwgpLVaf.js", [], null, true); // подключение sidebar
+  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-C0xTUTGQ.js", [], null, true); // подключение sidebar
   wp_enqueue_script('sidebar-select', get_template_directory_uri() . "/assets/js/index-CBO3_S1L.js", [], null, true); // подключение sidebar
 }
 
@@ -96,18 +94,6 @@ function themeSidebar()
 }
 
 
-//Переводы должны загружаться после инициализации WordPress, а не до неё.
-add_action('init', function () {
-  // Загрузка переводов WooWallet
-  load_plugin_textdomain('woo-wallet', false, dirname(plugin_basename(__FILE__)) . '/languages');
-
-  // Загрузка переводов WooCommerce
-  load_plugin_textdomain('woocommerce', false, dirname(plugin_basename(__FILE__)) . '/languages');
-});
-
-//----------------------
-
-
 // Создание nonce
 add_action('wp_enqueue_scripts', 'action_function_name_7714', 99);
 
@@ -120,6 +106,27 @@ function action_function_name_7714()
 }
 // //----------------------
 
+//Переводы должны загружаться после инициализации WordPress, а не до неё.
+add_action('init', function () {
+  // Загрузка переводов WooWallet
+  load_plugin_textdomain('woo-wallet', false, dirname(plugin_basename(__FILE__)) . '/languages');
+
+  // Загрузка переводов WooCommerce
+  load_plugin_textdomain('woocommerce', false, dirname(plugin_basename(__FILE__)) . '/languages');
+
+});
+
+//----------------------
+add_action('init', function () {
+    // Убедимся, что плагин TeraWallet загружен
+    if (!class_exists('WooWallet')) {
+        error_log('Плагин TeraWallet не загружен.'); // Логируем проблему
+        return;
+    }
+
+    // Подключение кастомных маршрутов REST API
+    require_once get_template_directory() . '/includes/custom-rest-routes.php';
+});
 
 
 

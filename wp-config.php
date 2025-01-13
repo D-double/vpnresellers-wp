@@ -48,6 +48,7 @@ define( 'DB_COLLATE', '' );
  *
  * @since 2.6.0
  */
+define('DISABLE_WP_REST_API', false);
 define('JWT_AUTH_SECRET_KEY', ']C)RGVNZxp*wxZm3<g)_2{Xq??koyfKLHQ#Jg*y729JM,h]]##bLJTU)#BBu||!7');
 define('JWT_AUTH_CORS_ENABLE', true);
 define( 'AUTH_KEY',         '5]*DO[+Fst9#SY{g<bx],[-z@LN/V1cI_ ?5{2D,5aBZ8#p{zo,V<F|& q!SSKP8' );

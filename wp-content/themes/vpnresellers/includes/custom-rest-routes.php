@@ -60,7 +60,6 @@ add_action('rest_api_init', function () {
       }, // Только для авторизованных пользователей
   ));
 });
-
 /**
 * Callback для создания заказа
 */
@@ -87,6 +86,22 @@ function create_order_with_custom_meta($request) {
       return new WP_Error('product_not_found', 'Товар с указанным SKU не найден.', array('status' => 404));
   }
 
+  $product = wc_get_product($product_id);
+  $product_price = $product->get_price();
+   
+  // Проверка баланса пользователя через TeraWallet
+  $balance = apply_filters('woo_wallet_balance', woo_wallet()->wallet->get_wallet_balance($user_id, true), $user_id);
+
+  if ($balance < $product_price) {
+      return array(
+          'status' => 'error',
+          'message' => 'Недостаточно средств на счёте.',
+          'error' => 'Insufficient balance',
+          'required' => $product_price,
+          'current_balance' => $balance,
+      );
+  }
+
   // Запрос к внешнему API
   $selected_service = $sku;
   $external_api_url = "https://smsbower.online/api/mail/getActivation?api_key={$api_key}&service={$selected_service}&domain={$domain}";
@@ -104,11 +119,13 @@ function create_order_with_custom_meta($request) {
       return $api_data;
   }
 
+  // Списание средств
+  woo_wallet()->wallet->debit($user_id, $product_price, 'Оплата заказа через API');
+
   // Создание заказа
   $order = wc_create_order();
 
   // Добавление товара в заказ
-  $product = wc_get_product($product_id);
   $order->add_product($product, 1); // Добавляем товар с количеством 1
 
   // Установка данных клиента
@@ -156,6 +173,7 @@ function create_order_with_custom_meta($request) {
           'image' => wp_get_attachment_image_url($product->get_image_id(), 'full'),
       ),
       'order_data' => $order_data, // Добавлено
+      'new_balance' => $balance - $product_price, // Обновлённый баланс пользователя
   );
 }
 
@@ -232,6 +250,8 @@ function get_user_orders_with_custom_format($request) {
               'mail' => $meta_data['mail'] ?? '',
               'mailId' => $meta_data['mailId'] ?? '',
               'status' => $meta_data['status'] ?? '',
+              'code' => $meta_data['code'] ?? '',
+              'error' => $meta_data['error'] ?? '',
           ),
           'timestamp' => $timestamp, // Время создания заказа
       );
@@ -329,6 +349,12 @@ add_action('rest_api_init', function () {
  * Callback для изменения статуса заказа на "Отменён"
  */
 function cancel_order_by_id($request) {
+    $user_id = get_current_user_id();
+
+    if ($user_id === 0) {
+        return new WP_Error('not_logged_in', 'Пользователь не авторизован.', array('status' => 401));
+    }
+
     // Извлекаем параметры из запроса
     $params = $request->get_json_params();
     $order_id = intval($params['order_id']);
@@ -345,7 +371,7 @@ function cancel_order_by_id($request) {
     }
 
     // Проверяем, принадлежит ли заказ текущему пользователю
-    $user_id = get_current_user_id();
+    
     if ($order->get_customer_id() !== $user_id) {
         return new WP_Error('not_authorized', 'Вы не можете отменить этот заказ.', array('status' => 403));
     }
@@ -353,6 +379,17 @@ function cancel_order_by_id($request) {
     // Проверяем, что заказ не имеет статус "Выполнен"
     if ($order->get_status() === 'completed') {
         return new WP_Error('order_completed', 'Заказ уже выполнен и не может быть отменён.', array('status' => 400));
+    }
+
+
+    // Получаем сумму заказа
+    $order_total = floatval($order->get_total());
+
+    // Возврат средств в кошелёк
+    if (function_exists('woo_wallet')) {
+        woo_wallet()->wallet->credit($user_id, $order_total, 'Возврат средств за отменённый заказ #' . $order_id);
+    } else {
+        return new WP_Error('wallet_not_loaded', 'Плагин TeraWallet не загружен.', array('status' => 500));
     }
 
     // Изменяем статус заказа на "Отменён"
@@ -363,5 +400,124 @@ function cancel_order_by_id($request) {
         'message' => 'Заказ успешно отменён.',
         'order_id' => $order_id,
         'order_status' => $order->get_status(),
+    );
+}
+
+
+//---------------------------
+// Получение кода почты и перевод заказа в статус "Выполнен" или "Отменён" REST API маршрут 
+add_action('rest_api_init', function () {
+    register_rest_route('custom/v1', '/process-order', array(
+        'methods' => 'POST',
+        'callback' => 'process_order_with_sms_code',
+        'permission_callback' => function () {
+            return is_user_logged_in(); // Только для авторизованных пользователей
+        },
+    ));
+});
+
+/**
+ * Callback для обработки заказа с использованием внешнего API
+ */
+function process_order_with_sms_code($request) {
+    $user_id = get_current_user_id();
+
+    if ($user_id === 0) {
+        return new WP_Error('not_logged_in', 'Пользователь не авторизован.', array('status' => 401));
+    }
+
+    // Извлекаем параметры из запроса
+    $params = $request->get_json_params();
+    $order_id = intval($params['order_id']);
+
+    if (empty($order_id)) {
+        return new WP_Error('missing_order_id', 'Параметр order_id обязателен.', array('status' => 400));
+    }
+
+    // Получаем заказ по ID
+    $order = wc_get_order($order_id);
+
+    if (!$order) {
+        return new WP_Error('order_not_found', 'Заказ с указанным ID не найден.', array('status' => 404));
+    }
+
+    // Проверяем, принадлежит ли заказ текущему пользователю
+    if ($order->get_customer_id() !== $user_id) {
+        return new WP_Error('not_authorized', 'Вы не можете обработать этот заказ.', array('status' => 403));
+    }
+
+    // Получаем mailId из метаданных заказа
+    // $mail_id = $order->get_meta('mailId');
+    // if (empty($mail_id)) {
+    //     return new WP_Error('missing_mail_id', 'mailId отсутствует в метаданных заказа.', array('status' => 400));
+    // }
+    // Получаем custom_data из метаданных заказа
+    $custom_data = $order->get_meta('custom_data');
+    if (empty($custom_data) || !isset($custom_data['mailId'])) {
+        return new WP_Error('missing_mail_id', 'mailId отсутствует в метаданных заказа.', array('status' => 400));
+    }
+
+    // Извлекаем mailId
+    $mail_id = intval($custom_data['mailId']);
+
+    // Делаем запрос к внешнему API
+    $api_key = 'JaBasLQyxRLgv3h0RnXMLCZAXaShlynz'; // Укажите ваш API ключ
+    $external_api_url = "https://smsbower.online/api/mail/getCode?api_key={$api_key}&mailId={$mail_id}";
+
+    $response = wp_remote_get($external_api_url);
+
+    if (is_wp_error($response)) {
+        return new WP_Error('external_api_error', 'Ошибка при запросе к внешнему API.', array('status' => 500));
+    }
+
+    $response_body = wp_remote_retrieve_body($response);
+    $api_data = json_decode($response_body, true);
+
+    if (!$api_data || !isset($api_data['status'])) {
+        return new WP_Error('invalid_api_response', 'Некорректный ответ от внешнего API.', array('status' => 500));
+    }
+
+    // Обработка ответа API
+    if ($api_data['status'] === 1 && isset($api_data['code'])) {
+        // Добавляем или обновляем ключ 'code' в custom_data
+        $custom_data['code'] = sanitize_text_field($api_data['code']);
+        $order->update_status('completed', 'Код успешно получен.');
+    } elseif ($api_data['status'] === 0 && isset($api_data['error'])) {
+        // Добавляем или обновляем ключ 'error' в custom_data
+        $custom_data['error'] = sanitize_text_field($api_data['error']);
+
+        // Если ошибка - "Activation is already canceled", переводим заказ в статус "отменён"
+        if ($custom_data['error'] === 'Activation is already canceled') {
+            $order->update_status('cancelled', 'Активация уже отменена.');
+        }
+    } else {
+        return $api_data;
+    }
+    // Сохраняем обновлённые данные custom_data
+    $order->update_meta_data('custom_data', $custom_data);
+    // Сохраняем изменения в заказе
+    $order->save();
+
+    // Формируем описание заказа для ответа
+    $order_data = array(
+        'id' => $order->get_id(),
+        'status' => $order->get_status(),
+        'currency' => $order->get_currency(),
+        'total' => $order->get_total(),
+        'billing' => array(
+            'email' => $order->get_billing_email(),
+        ),
+        'meta_data' => array(
+            'mailId' => $mail_id,
+            'code' => $order->get_meta('code'),
+            'error' => $order->get_meta('error'),
+        ),
+        'timestamp' => $order->get_date_created() ? $order->get_date_created()->getTimestamp() : null,
+    );
+
+    // Возвращаем данные заказа
+    return array(
+        'status' => 'success',
+        'order' => $order_data,
     );
 }
