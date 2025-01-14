@@ -521,3 +521,36 @@ function process_order_with_sms_code($request) {
         'order' => $order_data,
     );
 }
+
+
+//---------------------------
+// Получение баланса пользователя и валюты REST API маршрут 
+add_action('rest_api_init', function () {
+    register_rest_route('custom/v1', '/get-balance', array(
+        'methods' => 'GET',
+        'callback' => 'get_user_balance_and_currency',
+        'permission_callback' => function () {
+            return is_user_logged_in(); // Только для авторизованных пользователей
+        },
+    ));
+});
+
+/**
+ * Callback для получения баланса пользователя и валюты
+ */
+function get_user_balance_and_currency() {
+    $user_id = get_current_user_id();
+
+    if ($user_id === 0) {
+        return new WP_Error('not_logged_in', 'Пользователь не авторизован.', array('status' => 401));
+    }
+
+    // Получаем баланс пользователя
+    $balance = apply_filters('woo_wallet_balance', woo_wallet()->wallet->get_wallet_balance($user_id, true), $user_id);
+
+    // Возвращаем данные
+    return array(
+        'status' => 'success',
+        'balance' => wc_price($balance), // Форматируем баланс
+    );
+}

@@ -19,7 +19,7 @@ function themeScript()
 {
   wp_enqueue_script('bootstrap', get_template_directory_uri() . "/assets/js/bootstrap.min.js", [], null, true);
   wp_enqueue_script('main', get_template_directory_uri() . "/assets/js/main.js", [], null, true);
-  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-C0xTUTGQ.js", [], null, true); // подключение sidebar
+  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-Bi_wrOZq.js", [], "1.0.3", true); // подключение sidebar
   wp_enqueue_script('sidebar-select', get_template_directory_uri() . "/assets/js/index-CBO3_S1L.js", [], null, true); // подключение sidebar
 }
 
@@ -127,6 +127,5 @@ add_action('init', function () {
     // Подключение кастомных маршрутов REST API
     require_once get_template_directory() . '/includes/custom-rest-routes.php';
 });
-
 
 
