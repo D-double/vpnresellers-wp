@@ -17,4 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 ?>
+<script>
+	window.location.href = '/account-2/';
+</script>
 <div id="root"></div>

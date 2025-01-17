@@ -19,8 +19,7 @@ function themeScript()
 {
   wp_enqueue_script('bootstrap', get_template_directory_uri() . "/assets/js/bootstrap.min.js", [], null, true);
   wp_enqueue_script('main', get_template_directory_uri() . "/assets/js/main.js", [], null, true);
-  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-Bi_wrOZq.js", [], "1.0.3", true); // подключение sidebar
-  wp_enqueue_script('sidebar-select', get_template_directory_uri() . "/assets/js/index-CBO3_S1L.js", [], null, true); // подключение sidebar
+  wp_enqueue_script('user-navigate', get_template_directory_uri() . "/assets/js/index-B-pMSbFw.js", [], "1.0.4", true); // подключение sidebar
 }
 
 add_action('after_setup_theme', "themeMenu");
@@ -128,4 +127,10 @@ add_action('init', function () {
     require_once get_template_directory() . '/includes/custom-rest-routes.php';
 });
 
+add_filter('um_registration_redirect', function ($redirect_to, $user_id) {
+  // URL страницы "Учётная запись"
+  $account_page_url = site_url('/account-2/');
 
+  // Перенаправляем пользователя на страницу "Учётная запись"
+  return $account_page_url;
+}, 10, 2);
